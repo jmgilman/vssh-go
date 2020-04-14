@@ -4,23 +4,36 @@ import (
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
+	"os/exec"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
+var server string
+var token string
+var identity string
+
 var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "vssh",
+	Use:   "vssh [ssh host] [flags] -- [ssh-flags]",
 	Short: "A small wrapper for authenticating with SSH keys from Hashicorp Vault",
 	Long: `This wrapper automatically handles the process of fetching a signed public key certificate from a Hashicorp 
 Vault instance and using it to authenticate against a given host. It uses the default Vault environment variables for
 setting the Vault server address and token, but all configuration details can be optionally provided via flags, a 
 custom config file, or the default configuration file at ~/.vssh. If no token is provided, the wrapper will 
 automatically prompt to authenticate against Vault and obtain a new token via any configured authentication method.`,
-	Run: func(cmd *cobra.Command, args []string) { },
+	Args: cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		c := exec.Command("ssh", args...)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		c.Stdin = os.Stdin
+		fmt.Println(args)
+		c.Run()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -38,12 +51,14 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
+	// Vault variables
+	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "", "address of vault server")
+	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "vault token to use for authentication")
+
+	// SSH variables
+	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (defaults to $HOME/.ssh/id_rsa)")
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.vssh)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
