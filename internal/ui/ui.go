@@ -6,28 +6,23 @@ import (
 	"os/exec"
 )
 
-func GetInput(message string) (result string, err error) {
-	prompt := promptui.Prompt{
-		Label: message,
+func GetPrompt(message string, hidden bool) *promptui.Prompt {
+	if !hidden {
+		return &promptui.Prompt{
+			Label: message,
+		}
+	} else {
+		return &promptui.Prompt{
+			Label: message,
+			Mask: '*',
+		}
 	}
-	result, err = prompt.Run()
-	return
 }
 
-func GetInputHidden(message string) (result string, err error) {
-	prompt := promptui.Prompt{
-		Label:    "message",
-		Mask:     '*',
-	}
-
-	result, err = prompt.Run()
-	return
-}
-
-func CallSSH(args []string) {
+func GetSSHCommand(args []string) *exec.Cmd {
 	c := exec.Command("ssh", args...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
 	c.Stdin = os.Stdin
-	c.Run()
+	return c
 }
