@@ -1,25 +1,33 @@
 package ui
 
 import (
-	"bufio"
-	"fmt"
-	"golang.org/x/crypto/ssh/terminal"
+	"github.com/manifoldco/promptui"
 	"os"
-	"syscall"
+	"os/exec"
 )
 
-func GetInput(prompt string) (string, error) {
-	fmt.Print(prompt + ": ")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	result := scanner.Text()
-
-	return result, nil
+func GetInput(message string) (result string, err error) {
+	prompt := promptui.Prompt{
+		Label: message,
+	}
+	result, err = prompt.Run()
+	return
 }
 
-func GetInputHidden(prompt string) (string, error) {
-	fmt.Print(prompt + ": ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+func GetInputHidden(message string) (result string, err error) {
+	prompt := promptui.Prompt{
+		Label:    "message",
+		Mask:     '*',
+	}
 
-	return string(bytePassword), err
+	result, err = prompt.Run()
+	return
+}
+
+func CallSSH(args []string) {
+	c := exec.Command("ssh", args...)
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Stdin = os.Stdin
+	c.Run()
 }

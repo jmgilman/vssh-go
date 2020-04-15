@@ -2,12 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/spf13/cobra"
-	"os"
-	"os/exec"
-
 	homedir "github.com/mitchellh/go-homedir"
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"os"
 )
 
 var server string
@@ -27,12 +25,8 @@ custom config file, or the default configuration file at ~/.vssh. If no token is
 automatically prompt to authenticate against Vault and obtain a new token via any configured authentication method.`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		c := exec.Command("ssh", args...)
-		c.Stdout = os.Stdout
-		c.Stderr = os.Stderr
-		c.Stdin = os.Stdin
-		fmt.Println(args)
-		c.Run()
+		//TODO(jmgilman) Implement forwarding SSH
+		//ui.CallSSH(args)
 	},
 }
 
