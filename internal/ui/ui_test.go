@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestGetPrompt(t *testing.T) {
+func TestNewPrompt(t *testing.T) {
 	t.Run("with no hidden input", func(t *testing.T) {
 		message := "Username: "
-		prompt := GetPrompt(message, false)
+		prompt := NewPrompt(message, false)
 
 		assert.Equal(t, message, prompt.Label)
 	})
@@ -17,17 +17,17 @@ func TestGetPrompt(t *testing.T) {
 	t.Run("with hidden input", func(t *testing.T) {
 		message := "Username: "
 		mask := '*'
-		prompt := GetPrompt(message, true)
+		prompt := NewPrompt(message, true)
 
 		assert.Equal(t, message, prompt.Label)
 		assert.Equal(t, mask, prompt.Mask)
 	})
 }
 
-func TestGetSSHCommand(t *testing.T) {
+func TestNewSSHCommand(t *testing.T) {
 	args := []string{"arg1", "arg2"}
 	expectedArgs := []string{"ssh", "arg1", "arg2"}
-	result := GetSSHCommand(args)
+	result := NewSSHCommand(args)
 
 	assert.Equal(t, result.Args, expectedArgs)
 	assert.Equal(t, result.Stdin, os.Stdin)

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 )
 
-func GetPrompt(message string, hidden bool) *promptui.Prompt {
+func NewPrompt(message string, hidden bool) *promptui.Prompt {
 	if !hidden {
 		return &promptui.Prompt{
 			Label: message,
@@ -19,7 +19,7 @@ func GetPrompt(message string, hidden bool) *promptui.Prompt {
 	}
 }
 
-func GetSSHCommand(args []string) *exec.Cmd {
+func NewSSHCommand(args []string) *exec.Cmd {
 	c := exec.Command("ssh", args...)
 	c.Stdout = os.Stdout
 	c.Stderr = os.Stderr
