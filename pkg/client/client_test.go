@@ -1,94 +1,120 @@
 package client_test
 
 import (
-	"fmt"
 	"github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/builtin/credential/userpass"
+	"github.com/hashicorp/vault/http"
+	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/hashicorp/vault/vault"
 	"github.com/jmgilman/vssh/internal/mocks"
 	"github.com/jmgilman/vssh/pkg/client"
 	"github.com/stretchr/testify/assert"
+	"net"
+	"os"
 	"testing"
 )
 
-func NewMockAPI(write *mocks.WriterMock) *mocks.APIMock {
-	mockAPI := mocks.APIMock{}
-	mockAPI.LogicalFunc = func() client.Writer {
-		return write
+func NewVaultServer(t *testing.T) (net.Listener, *api.Client) {
+	t.Helper()
+
+	// Create an in-memory, unsealed core with userpass auth plugin enabled
+	coreConfig := &vault.CoreConfig{
+		CredentialBackends: map[string]logical.Factory{
+			"userpass": userpass.Factory,
+		},
 	}
-	mockAPI.SetTokenFunc = func(in1 string) {}
-	return &mockAPI
+	core, keyShares, rootToken := vault.TestCoreUnsealedWithConfig(t, coreConfig)
+	_ = keyShares
+
+	// Start an HTTP server for the core.
+	ln, addr := http.TestServer(t, core)
+
+	// Create a client that talks to the server, initially authenticating with
+	// the root token.
+	conf := api.DefaultConfig()
+	conf.Address = addr
+
+	apiClient, err := api.NewClient(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Setup test user account
+	apiClient.SetToken(rootToken)
+	err = apiClient.Sys().EnableAuthWithOptions("userpass", &api.EnableAuthOptions{Type: "userpass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = apiClient.Logical().Write("auth/userpass/users/test", NewCreds(t, "password"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return ln, apiClient
 }
 
-func NewMockWrite(token string, err error) *mocks.WriterMock {
-	return &mocks.WriterMock{WriteFunc: func(in1 string, in2 map[string]interface{}) (*api.Secret, error) {
-		return &api.Secret{
-			Auth: &api.SecretAuth{
-				ClientToken: token,
-			},
-		}, err
-	}}
+func NewCreds(t *testing.T, password string) map[string]interface{} {
+	t.Helper()
+	return map[string]interface{} {
+		"password": password,
+	}
 }
 
-func NewMockWriteEmpty(token string, err error) *mocks.WriterMock {
-	return &mocks.WriterMock{WriteFunc: func(in1 string, in2 map[string]interface{}) (*api.Secret, error) {
-		return &api.Secret{}, err
-	}}
-}
-
-func NewMockAuth() *mocks.AuthMock {
+func NewMockAuth(t *testing.T, password string) *mocks.AuthMock {
+	t.Helper()
 	return &mocks.AuthMock{
-		GetDataFunc: func() map[string]interface{} { return make(map[string]interface{})},
-		GetPathFunc: func() string { return ""},
+		GetPathFunc: func() string {return "auth/userpass/login/test"},
+		GetDataFunc: func() map[string]interface{} {return NewCreds(t, password)},
 	}
+}
+
+func TestNewClient(t *testing.T) {
+	config := &api.Config{
+		Address: "http://127.1.1:8200",
+	}
+	vaultClient, err := client.NewClient(config)
+	assert.Nil(t, err)
+	assert.Equal(t, vaultClient.Address(), config.Address)
+}
+
+func TestNewDefaultClient(t *testing.T) {
+	// The Vault default config pulls address from the VAULT_ADDR environment variable
+	if err := os.Setenv("VAULT_ADDR", "http://127.1.1:8200"); err != nil {
+		t.Fatal(err)
+	}
+	vaultClient, err := client.NewDefaultClient()
+	assert.Nil(t, err)
+	assert.Equal(t, vaultClient.Address(), "http://127.1.1:8200")
 }
 
 func TestVaultClient_Login(t *testing.T) {
-	t.Run("test with no error", func(t *testing.T) {
-		// Generate mocks
-		mockWrite := NewMockWrite("test123", nil)
-		mockAPI := NewMockAPI(mockWrite)
-		mockAuth := NewMockAuth()
+	// Setup helper objects
+	ln, apiClient := NewVaultServer(t)
+	vaultClient := client.NewClientWithAPI(apiClient)
 
-		// Setup new VaultClient using mock
-		vaultClient := client.New(mockAPI)
+	t.Run("Test with valid login", func(t *testing.T) {
+		apiClient.SetToken("")
 
-		// Test a successful login
-		err := vaultClient.Login(mockAuth)
+		err := vaultClient.Login(NewMockAuth(t, "password"))
 		assert.Nil(t, err)
-		assert.NotEmpty(t, mockAuth.GetDataCalls())
-		assert.NotEmpty(t, mockAuth.GetPathCalls())
-		assert.Equal(t, mockAPI.SetTokenCalls()[0].In1, "test123")
+		assert.NotEmpty(t, vaultClient.Token())
 	})
-	t.Run("test with error", func(t *testing.T) {
-		// Generate mocks
-		fakeErr := fmt.Errorf("error")
-		mockWrite := NewMockWrite("test123", fakeErr)
-		mockAPI := NewMockAPI(mockWrite)
-		mockAuth := NewMockAuth()
 
-		// Setup new VaultClient using mocks
-		vaultClient := client.New(mockAPI)
+	t.Run("Test with invalid login", func(t *testing.T) {
+		apiClient.SetToken("")
 
-		// Test an api error
-		err := vaultClient.Login(mockAuth)
-		assert.Equal(t, err, fakeErr)
-		assert.NotEmpty(t, mockAuth.GetDataCalls())
-		assert.NotEmpty(t, mockAuth.GetPathCalls())
-		assert.Empty(t, mockAPI.SetTokenCalls())
+		err := vaultClient.Login(NewMockAuth(t, "wrongpassword"))
+		assert.Empty(t, vaultClient.Token())
+		switch err := err.(type) {
+		case *api.ResponseError:
+			assert.Equal(t, err.StatusCode, 400)
+		default:
+			t.Fatal(err)
+		}
 	})
-	t.Run("test with empty response", func(t *testing.T) {
-		// Generate mocks
-		mockWrite := NewMockWriteEmpty("test123", nil)
-		mockAPI := NewMockAPI(mockWrite)
-		mockAuth := NewMockAuth()
 
-		// Setup new VaultClient using mocks
-		vaultClient := client.New(mockAPI)
-
-		// Test an empty response
-		err := vaultClient.Login(mockAuth)
-		assert.NotEmpty(t, err)
-		assert.NotEmpty(t, mockAuth.GetDataCalls())
-		assert.NotEmpty(t, mockAuth.GetPathCalls())
-		assert.Empty(t, mockAPI.SetTokenCalls())
-	})
+	// Cleanup
+	if err := ln.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
