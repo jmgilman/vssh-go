@@ -3,7 +3,7 @@ package client
 import (
 	"fmt"
 	"github.com/hashicorp/vault/api"
-	"github.com/jmgilman/vssh/pkg/auth"
+	"github.com/jmgilman/vssh/auth"
 )
 
 type VaultClient struct {
