@@ -16,3 +16,6 @@ vendor/
 
 # GoLand project directory
 .idea/
+
+# Mocks
+internal/mocks/
