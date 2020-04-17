@@ -3,7 +3,6 @@ module github.com/jmgilman/vssh
 go 1.14
 
 require (
-	github.com/golang/mock v1.4.3 // indirect
 	github.com/hashicorp/vault v1.4.0
 	github.com/hashicorp/vault/api v1.0.5-0.20200317185738-82f498082f02
 	github.com/hashicorp/vault/sdk v0.1.14-0.20200406173424-43a93d4a43b1

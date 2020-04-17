@@ -44,6 +44,29 @@ func (c *VaultClient) Login(a auth.Auth) error {
 	return nil
 }
 
+func (c *VaultClient) Authenticated() bool {
+	_, err := c.api.Auth().Token().LookupSelf()
+	if err != nil {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (c *VaultClient) Available() (bool, error) {
+	status, err := c.api.Sys().SealStatus()
+	if err != nil {
+		return false, err
+	}
+
+	// Verify the Vault is not sealed and has been initialized
+	if !status.Sealed && status.Initialized {
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (c *VaultClient) Address() string {
 	return c.api.Address()
 }

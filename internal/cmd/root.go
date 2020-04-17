@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/jmgilman/vssh/client"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -25,9 +26,40 @@ custom config file, or the default configuration file at ~/.vssh. If no token is
 automatically prompt to authenticate against Vault and obtain a new token via any configured authentication method.`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		main()
 		//TODO(jmgilman) Implement forwarding SSH
 		//ui.CallSSH(args)
 	},
+}
+
+
+// main is executed by the root command and is the main entry point to the program
+func main() {
+	// Attempt to create a Client using default config parameters
+	client, err := client.NewDefaultClient()
+	if err != nil {
+		fmt.Println("Error trying to load Vault client configuration: ", err)
+		os.Exit(1)
+	}
+
+	// Verify the vault is in a usable state
+	status, err := client.Available()
+	if err != nil {
+		fmt.Println("Error trying to check vault status: ", err)
+	}
+
+	if !status {
+		fmt.Println("The vault is either sealed or not initialized - cannot continue")
+		os.Exit(1)
+	}
+
+	// Check if client is authenticated - if not, offer authentication options
+	// TODO(jmgilman): Add authentication and login steps
+	if client.Authenticated() {
+		fmt.Println("Authenticated!")
+	} else {
+		fmt.Println("Not authenticated!")
+	}
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
