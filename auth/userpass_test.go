@@ -8,6 +8,7 @@ import (
 
 func TestNewUserPassAuth(t *testing.T) {
 	testUP := &UserPassAuth{
+		name: "Userpass",
 		mount: "userpass",
 	}
 
@@ -17,6 +18,7 @@ func TestNewUserPassAuth(t *testing.T) {
 
 func TestNewUserPassRadiusAuth(t *testing.T) {
 	testUP := &UserPassAuth{
+		name: "Radius",
 		mount: "radius",
 	}
 

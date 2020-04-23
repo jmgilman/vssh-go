@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/jmgilman/vssh/auth"
 	"github.com/jmgilman/vssh/client"
+	"github.com/jmgilman/vssh/internal/ui"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,14 +38,14 @@ automatically prompt to authenticate against Vault and obtain a new token via an
 // main is executed by the root command and is the main entry point to the program
 func main() {
 	// Attempt to create a Client using default config parameters
-	client, err := client.NewDefaultClient()
+	vaultClient, err := client.NewDefaultClient()
 	if err != nil {
 		fmt.Println("Error trying to load Vault client configuration: ", err)
 		os.Exit(1)
 	}
-
+	
 	// Verify the vault is in a usable state
-	status, err := client.Available()
+	status, err := vaultClient.Available()
 	if err != nil {
 		fmt.Println("Error trying to check vault status: ", err)
 	}
@@ -53,12 +55,27 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Check if client is authenticated - if not, offer authentication options
-	// TODO(jmgilman): Add authentication and login steps
-	if client.Authenticated() {
-		fmt.Println("Authenticated!")
-	} else {
-		fmt.Println("Not authenticated!")
+	// Check if client is authenticated - if not, attempt to perform a login with the client
+	if !vaultClient.Authenticated() {
+		// Ask which authentication type they would like to use
+		prompt := ui.NewSelectPrompt("Please choose an authentication method:", auth.GetAuthNames())
+		_, result, err := prompt.Run()
+		if err != nil {
+			fmt.Println("Error getting authentication method:", err)
+			os.Exit(1)
+		}
+
+		// Collect authentication details for the selected method
+		authType := auth.Types[result]()
+		details, err := ui.GetAuthDetails(authType, ui.NewPrompt)
+
+		// Login with the collected details
+		if err := vaultClient.Login(authType, details); err != nil {
+			fmt.Println("Error logging in:", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("Authentication successful!")
 	}
 }
 

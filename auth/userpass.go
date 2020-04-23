@@ -5,19 +5,26 @@ import (
 )
 
 type UserPassAuth struct {
+	name string
 	mount string
 }
 
-func NewUserPassAuth() *UserPassAuth {
+func NewUserPassAuth() Auth {
 	return &UserPassAuth{
-		"userpass",
+		name: "Userpass",
+		mount: "userpass",
 	}
 }
 
-func NewUserPassRadiusAuth() *UserPassAuth {
+func NewUserPassRadiusAuth() Auth {
 	return &UserPassAuth{
+		name: "Radius",
 		mount: "radius",
 	}
+}
+
+func (u *UserPassAuth) Name() string {
+	return u.name
 }
 
 func (u *UserPassAuth) AuthDetails() map[string]*Detail {
