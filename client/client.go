@@ -44,6 +44,36 @@ func (c *VaultClient) Login(a auth.Auth, d map[string]*auth.Detail) error {
 	return nil
 }
 
+func (c *VaultClient) SignPubKey(mount string, role string, key []byte) (string, error) {
+	var ssh *api.SSH
+	if mount == "" {
+		ssh = c.api.SSH()
+	} else {
+		ssh = c.api.SSHWithMountPoint(mount)
+	}
+
+	data := map[string]interface{} {
+		"public_key": string(key),
+		"cert_type": "user",
+	}
+
+	result, err := ssh.SignKey(role, data)
+	if err != nil {
+		return "", err
+	}
+
+	if result == nil || result.Data == nil {
+		return "", fmt.Errorf("no key was returned from the server")
+	}
+
+	signedKey, ok := result.Data["signed_key"].(string)
+	if !ok || signedKey == "" {
+		return "", fmt.Errorf("no key was returned from the server")
+	}
+
+	return signedKey, nil
+}
+
 func (c *VaultClient) Authenticated() bool {
 	_, err := c.api.Auth().Token().LookupSelf()
 	if err != nil {

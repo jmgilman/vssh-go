@@ -1,9 +1,14 @@
 package client_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/builtin/credential/userpass"
+	"github.com/hashicorp/vault/builtin/logical/ssh"
 	"github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/hashicorp/vault/vault"
@@ -12,6 +17,7 @@ import (
 	"github.com/jmgilman/vssh/internal/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	cssh "golang.org/x/crypto/ssh"
 	"net"
 	"os"
 	"testing"
@@ -29,13 +35,13 @@ func TestClientTestSuite(t *testing.T) {
 	suite.Run(t, new(ClientTestSuite))
 }
 
-func (suite *ClientTestSuite) SetupTest() {
+func (suite *ClientTestSuite) SetupSuite() {
 	// Initialize an in-memory Vault server
 	suite.handler, suite.apiClient, suite.keys = suite.NewVaultServer()
 	suite.rootToken = suite.apiClient.Token()
 }
 
-func (suite *ClientTestSuite) TearDownTest() {
+func (suite *ClientTestSuite) TearDownSuite() {
 	// Cleanup HTTP handler
 	if err := suite.handler.Close(); err != nil {
 		suite.T().Fatal(err)
@@ -50,6 +56,9 @@ func (suite *ClientTestSuite) NewVaultServer() (net.Listener, *api.Client, [][]b
 	coreConfig := &vault.CoreConfig{
 		CredentialBackends: map[string]logical.Factory{
 			"userpass": userpass.Factory,
+		},
+		LogicalBackends: map[string]logical.Factory {
+			"ssh": ssh.Factory,
 		},
 	}
 	core, keyShares, rootToken := vault.TestCoreUnsealedWithConfig(t, coreConfig)
@@ -78,6 +87,26 @@ func (suite *ClientTestSuite) NewVaultServer() (net.Listener, *api.Client, [][]b
 		t.Fatal(err)
 	}
 
+	// Setup SSH backend
+	roleData := map[string]interface{} {
+		"allow_user_certificates": true,
+		"allowed_users": "*",
+		"key_type": "ca",
+		"ttl": "30m0s",
+	}
+	err = apiClient.Sys().Mount("ssh", &api.MountInput{Type: "ssh"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = apiClient.Logical().Write("ssh/config/ca", map[string]interface{}{ "generate_signing_key": true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = apiClient.Logical().Write("ssh/roles/test", roleData)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	return ln, apiClient, keyShares
 }
 
@@ -94,6 +123,26 @@ func (suite *ClientTestSuite) NewMockAuth(password string) *mocks.AuthMock {
 		GetPathFunc: func(map[string]*auth.Detail) string {return "auth/userpass/login/test"},
 		GetDataFunc: func(map[string]*auth.Detail) map[string]interface{} {return suite.NewCreds(password)},
 	}
+}
+
+func (suite *ClientTestSuite) EncodeSSHPrivateKey(key *rsa.PrivateKey) []byte {
+	return pem.EncodeToMemory(
+		&pem.Block{
+			Type:  "RSA PRIVATE KEY",
+			Bytes: x509.MarshalPKCS1PrivateKey(key),
+		},
+	)
+}
+
+func (suite *ClientTestSuite) NewSSHPubKey() ([]byte, error) {
+	suite.T().Helper()
+	// Private Key generation
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return []byte{}, err
+	}
+	publicKey, _ := cssh.NewPublicKey(&privateKey.PublicKey)
+	return cssh.MarshalAuthorizedKey(publicKey), nil
 }
 
 func (suite *ClientTestSuite) TestNewClient() {
@@ -143,6 +192,20 @@ func (suite *ClientTestSuite) TestVaultClient_Login() {
 	})
 }
 
+func (suite *ClientTestSuite) TestSignPubKey() {
+	suite.apiClient.SetToken(suite.rootToken)
+	vaultClient := client.NewClientWithAPI(suite.apiClient)
+
+	pubKey, err := suite.NewSSHPubKey()
+	if err != nil {
+		suite.T().Fatal(err)
+	}
+
+	result, err := vaultClient.SignPubKey("ssh", "test", pubKey)
+	assert.Nil(suite.T(), err)
+	assert.NotEmpty(suite.T(), result)
+}
+
 func (suite *ClientTestSuite) TestAuthenticated() {
 	t := suite.T()
 	vaultClient := client.NewClientWithAPI(suite.apiClient)
@@ -167,6 +230,7 @@ func (suite *ClientTestSuite) TestAvailable() {
 	})
 	t.Run("Test with a sealed vault", func(t *testing.T) {
 		// Seal the vault
+		suite.apiClient.SetToken(suite.rootToken)
 		if err := suite.apiClient.Sys().Seal(); err != nil {
 			suite.T().Fatal(err)
 		}
