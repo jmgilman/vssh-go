@@ -1,6 +1,5 @@
 gen:
 	@echo "Running go generate..."
-	go generate github.com/jmgilman/vssh/client
 	go generate github.com/jmgilman/vssh/auth
 
 test:

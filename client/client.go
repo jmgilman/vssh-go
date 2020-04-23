@@ -28,8 +28,8 @@ func NewDefaultClient() (*VaultClient, error) {
 	return NewClient(api.DefaultConfig())
 }
 
-func (c *VaultClient) Login(a auth.Auth) error {
-	secret, err := c.api.Logical().Write(a.GetPath(), a.GetData())
+func (c *VaultClient) Login(a auth.Auth, d map[string]*auth.Detail) error {
+	secret, err := c.api.Logical().Write(a.GetPath(d), a.GetData(d))
 
 	if err != nil {
 		return err

@@ -1,35 +1,44 @@
 package auth
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type UserPassAuth struct {
-	username string
-	password string
 	mount string
 }
 
-func NewUserPassAuth(username string, password string) *UserPassAuth {
+func NewUserPassAuth() *UserPassAuth {
 	return &UserPassAuth{
-		username,
-		password,
 		"userpass",
 	}
 }
 
-func NewUserPassRadiusAuth(username string, password string) *UserPassAuth {
+func NewUserPassRadiusAuth() *UserPassAuth {
 	return &UserPassAuth{
-		username: username,
-		password: password,
 		mount: "radius",
 	}
 }
 
-func (u *UserPassAuth) GetPath() string {
-	return fmt.Sprintf("auth/%s/login/%s", u.mount, u.username)
+func (u *UserPassAuth) AuthDetails() map[string]*Detail {
+	return map[string]*Detail {
+		"username": {
+			Prompt: "Username: ",
+			Hidden: false,
+		},
+		"password": {
+			Prompt: "Password: ",
+			Hidden: true,
+		},
+	}
 }
 
-func (u *UserPassAuth) GetData() map[string]interface{} {
+func (u *UserPassAuth) GetPath(details map[string]*Detail) string {
+	return fmt.Sprintf("auth/%s/login/%s", u.mount, details["username"].Value)
+}
+
+func (u *UserPassAuth) GetData(details map[string]*Detail) map[string]interface{} {
 	return map[string]interface{}{
-		"password": u.password,
+		"password": details["password"].Value,
 	}
 }

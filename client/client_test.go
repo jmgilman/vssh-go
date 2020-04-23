@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/vault/http"
 	"github.com/hashicorp/vault/sdk/logical"
 	"github.com/hashicorp/vault/vault"
+	"github.com/jmgilman/vssh/auth"
 	"github.com/jmgilman/vssh/client"
 	"github.com/jmgilman/vssh/internal/mocks"
 	"github.com/stretchr/testify/assert"
@@ -90,8 +91,8 @@ func (suite *ClientTestSuite) NewCreds(password string) map[string]interface{} {
 func (suite *ClientTestSuite) NewMockAuth(password string) *mocks.AuthMock {
 	suite.T().Helper()
 	return &mocks.AuthMock{
-		GetPathFunc: func() string {return "auth/userpass/login/test"},
-		GetDataFunc: func() map[string]interface{} {return suite.NewCreds(password)},
+		GetPathFunc: func(map[string]*auth.Detail) string {return "auth/userpass/login/test"},
+		GetDataFunc: func(map[string]*auth.Detail) map[string]interface{} {return suite.NewCreds(password)},
 	}
 }
 
@@ -118,11 +119,12 @@ func (suite *ClientTestSuite) TestVaultClient_Login() {
 	// Setup helper objects
 	vaultClient := client.NewClientWithAPI(suite.apiClient)
 	t := suite.T()
+	details := map[string]*auth.Detail{} // Can use empty details since we already override the functions
 
 	t.Run("Test with valid login", func(t *testing.T) {
 		suite.apiClient.SetToken("")
 
-		err := vaultClient.Login(suite.NewMockAuth("password"))
+		err := vaultClient.Login(suite.NewMockAuth("password"), details)
 		assert.Nil(t, err)
 		assert.NotEmpty(t, vaultClient.Token())
 	})
@@ -130,7 +132,7 @@ func (suite *ClientTestSuite) TestVaultClient_Login() {
 	t.Run("Test with invalid login", func(t *testing.T) {
 		suite.apiClient.SetToken("")
 
-		err := vaultClient.Login(suite.NewMockAuth("wrongpassword"))
+		err := vaultClient.Login(suite.NewMockAuth("wrongpassword"), details)
 		assert.Empty(t, vaultClient.Token())
 		switch err := err.(type) {
 		case *api.ResponseError:
