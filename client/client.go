@@ -97,6 +97,16 @@ func (c *VaultClient) Available() (bool, error) {
 	return false, nil
 }
 
+func (c *VaultClient) SetConfigValues(server string, token string) {
+	if server != "" {
+		c.api.SetAddress(server)
+	}
+
+	if token != "" {
+		c.api.SetToken(token)
+	}
+}
+
 func (c *VaultClient) Address() string {
 	return c.api.Address()
 }

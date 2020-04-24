@@ -11,12 +11,14 @@ import (
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 )
 
 var server string
 var token string
 var role string
 var mount string
+var persist bool
 var identity string
 
 var cfgFile string
@@ -32,16 +34,14 @@ custom config file, or the default configuration file at ~/.vssh. If no token is
 automatically prompt to authenticate against Vault and obtain a new token via any configured authentication method.`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		main()
-		//TODO(jmgilman) Implement forwarding SSH
-		//ui.CallSSH(args)
+		main(args)
 	},
 }
 
 // main is executed by the root command and is the main entry point to the program
-func main() {
-	// See if the public key certificate exists and is signed
-	publicKeyPath, pubKeyBytes, err := ssh.GetPublicKey(identity)
+func main(args []string) {
+	// See if the public key certificate exists and is still valid
+	publicKeyPath, pubKeyBytes, err := ssh.GetPublicKey(viper.GetString("identity"))
 	if err != nil {
 		errorThenExit("Error fetching public key", err)
 	}
@@ -51,8 +51,13 @@ func main() {
 		errorThenExit("Error reading certificate at " + certPath, err)
 	}
 	if valid {
-		fmt.Println("Already signed!")
-		os.Exit(0)
+		runSSH(args)
+	}
+
+	// Must have a role specified at this point
+	if viper.GetString("role") == "" {
+		fmt.Println("Please specify a role to sign with")
+		os.Exit(1)
 	}
 
 	// Attempt to create a Client using default config parameters
@@ -60,6 +65,9 @@ func main() {
 	if err != nil {
 		errorThenExit("Error trying to load Vault client configuration", err)
 	}
+
+	// Pass config values
+	vaultClient.SetConfigValues(viper.GetString("server"), viper.GetString("token"))
 
 	// Verify the vault is in a usable state
 	status, err := vaultClient.Available()
@@ -77,7 +85,7 @@ func main() {
 		login(vaultClient)
 	}
 
-	signedKey, err := vaultClient.SignPubKey(mount, role, pubKeyBytes)
+	signedKey, err := vaultClient.SignPubKey(viper.GetString("mount"), viper.GetString("role"), pubKeyBytes)
 	if err != nil {
 		errorThenExit("Error signing public key", err)
 	}
@@ -87,6 +95,7 @@ func main() {
 	}
 
 	fmt.Println("Wrote certificate to ", certPath)
+	runSSH(args)
 }
 
 func login(vaultClient *client.VaultClient) {
@@ -109,6 +118,25 @@ func login(vaultClient *client.VaultClient) {
 	}
 
 	fmt.Println("Authentication successful!")
+
+	if viper.GetBool("persist") {
+		home, err := homedir.Dir()
+		if err != nil {
+			errorThenExit("Error getting user home directory", err)
+		}
+
+		tokenPath := filepath.Join(home, ".vault-token")
+		if err := ioutil.WriteFile(tokenPath, []byte(vaultClient.Token()), 0644); err != nil {
+			errorThenExit("Error persising token to ~/.vault-token", err)
+		}
+	}
+}
+func runSSH(args []string) {
+	cmd := ssh.NewSSHCommand(args)
+	if err := cmd.Run(); err != nil {
+		errorThenExit("Error running ssh command", err)
+	}
+	os.Exit(0)
 }
 
 func errorThenExit(message string, err error) {
@@ -126,21 +154,35 @@ func Execute() {
 }
 
 func init() {
+	// Load config file
 	cobra.OnInitialize(initConfig)
 
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
 	// Vault variables
-	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "", "address of vault server")
-	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "vault token to use for authentication")
+	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "", "address of vault server (default: $VAULT_ADDR)")
+	err := viper.BindPFlag("server", rootCmd.PersistentFlags().Lookup("server"))
+
+	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "vault token to use for authentication (default: $VAULT_TOKEN)")
+	err = viper.BindPFlag("token", rootCmd.PersistentFlags().Lookup("token"))
+
 	rootCmd.PersistentFlags().StringVarP(&role, "role", "r", "", "vault role account to sign with")
-	rootCmd.PersistentFlags().StringVarP(&mount, "mount", "m", "", "mount path for ssh backend")
+	err = viper.BindPFlag("role", rootCmd.PersistentFlags().Lookup("role"))
+
+	rootCmd.PersistentFlags().StringVarP(&mount, "mount", "m", "", "mount path for ssh backend (default: ssh)")
+	err = viper.BindPFlag("mount", rootCmd.PersistentFlags().Lookup("mount"))
+
+	rootCmd.PersistentFlags().BoolVarP(&persist, "persist", "p", false, "persist obtained tokens to ~/.vault-token")
+	err = viper.BindPFlag("persist", rootCmd.PersistentFlags().Lookup("persist"))
 
 	// SSH variables
-	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (defaults to $HOME/.ssh/id_rsa)")
+	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (default: $HOME/.ssh/id_rsa)")
+	err = viper.BindPFlag("identity", rootCmd.PersistentFlags().Lookup("identity"))
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.vssh)")
+	// Config variables
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vssh)")
+
+	if err != nil {
+		errorThenExit("Error binding to flags", err)
+	}
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -152,16 +194,15 @@ func initConfig() {
 		// Find home directory.
 		home, err := homedir.Dir()
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errorThenExit("Error getting user home directory", err)
 		}
 
-		// Search config in home directory with name ".vssh" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".vssh")
+		// Default to $HOME/.vssh
+		viper.SetConfigFile(filepath.Join(home, ".vssh"))
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
+	viper.SetConfigType("yaml")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
