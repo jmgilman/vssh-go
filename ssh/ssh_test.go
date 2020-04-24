@@ -2,8 +2,10 @@ package ssh
 
 import (
 	"github.com/stretchr/testify/assert"
+	cssh "golang.org/x/crypto/ssh"
 	"os"
 	"testing"
+	"time"
 )
 
 func TestNewSSHCommand(t *testing.T) {
@@ -40,4 +42,21 @@ func TestGetPublicKeyCertPath(t *testing.T) {
 	expected := "/home/user/.ssh/id_rsa-cert.pub"
 
 	assert.Equal(t, expected, GetPublicKeyCertPath(path))
+}
+
+func TestIsCertificateValid(t *testing.T) {
+	t.Run("With valid time", func(t *testing.T) {
+		cert := &cssh.Certificate{
+			ValidBefore: uint64(time.Now().Unix()) + 1000,
+			ValidAfter: uint64(time.Now().Unix()) - 1000,
+		}
+		assert.True(t, IsCertificateValid(cert))
+	})
+	t.Run("With invalid time", func(t *testing.T) {
+		cert := &cssh.Certificate{
+			ValidBefore: uint64(time.Now().Unix()) - 1000,
+			ValidAfter: uint64(time.Now().Unix()) + 1000,
+		}
+		assert.False(t, IsCertificateValid(cert))
+	})
 }

@@ -40,18 +40,23 @@ automatically prompt to authenticate against Vault and obtain a new token via an
 
 // main is executed by the root command and is the main entry point to the program
 func main(args []string) {
-	// See if the public key certificate exists and is still valid
+	// Load public key information
 	publicKeyPath, pubKeyBytes, err := ssh.GetPublicKey(viper.GetString("identity"))
 	if err != nil {
 		errorThenExit("Error fetching public key", err)
 	}
+
+	// Check if a cert exists and is still valid
 	certPath := ssh.GetPublicKeyCertPath(publicKeyPath)
-	valid, err := ssh.IsCertificateValid(certPath)
-	if err != nil {
-		errorThenExit("Error reading certificate at " + certPath, err)
-	}
-	if valid {
-		runSSH(args)
+	if _, err := os.Stat(certPath); !os.IsNotExist(err) {
+		cert, err := ssh.GetCertificate(certPath)
+		if err != nil {
+			errorThenExit("Error reading certificate at " + certPath, err)
+		}
+
+		if ssh.IsCertificateValid(cert) {
+			runSSH(args) // No need to continue further since the cert is still valid
+		}
 	}
 
 	// Must have a role specified at this point

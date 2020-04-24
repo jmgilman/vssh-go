@@ -4,9 +4,20 @@ import (
 	"github.com/jmgilman/vssh/auth"
 	"github.com/jmgilman/vssh/internal/mocks"
 	"github.com/jmgilman/vssh/internal/ui"
+	"github.com/manifoldco/promptui"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
+
+func TestGetAuthDetails2(t *testing.T) {
+	expected := promptui.Select{
+		Label: "test",
+		Items: []string{"test", "test1"},
+	}
+	got := ui.NewSelectPrompt("test", []string{"test", "test1"})
+	assert.Equal(t, expected.Label, got.Label)
+	assert.Equal(t, expected.Items, got.Items)
+}
 
 func TestGetAuthDetails(t *testing.T) {
 	var messages []string

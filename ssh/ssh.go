@@ -37,6 +37,20 @@ func GetPublicKey(identity string) (string, []byte, error) {
 	return publicKeyPath, data, nil
 }
 
+func GetCertificate(certPath string) (*cssh.Certificate, error) {
+	signedKeyBytes, err := ioutil.ReadFile(certPath)
+	if err != nil {
+		return &cssh.Certificate{}, err
+	}
+
+	cert, _, _, _, err := cssh.ParseAuthorizedKey(signedKeyBytes)
+	if err != nil {
+		return &cssh.Certificate{}, err
+	}
+
+	return cert.(*cssh.Certificate), nil
+}
+
 func GetPublicKeyPath(identity string) (publicKeyPath string, err error) {
 	if identity == "" {
 		defaultPubKeyPath, err := os.UserHomeDir()
@@ -58,25 +72,13 @@ func GetPublicKeyCertPath(pubKeyPath string) string {
 	return filepath.Join(filepath.Dir(pubKeyPath), newName)
 }
 
-func IsCertificateValid(certPath string) (bool, error) {
-	if _, err := os.Stat(certPath); !os.IsNotExist(err) {
-		signedKeyBytes, err := ioutil.ReadFile(certPath)
-		if err != nil {
-			return false, err
-		}
-
-		cert, _, _, _, err := cssh.ParseAuthorizedKey(signedKeyBytes)
-		if err != nil {
-			return false, err
-		}
-
-		validBefore := int64(cert.(*cssh.Certificate).ValidBefore)
-		validAfter := int64(cert.(*cssh.Certificate).ValidAfter)
-		now := time.Now().Unix()
-		if now < validBefore && now > validAfter {
-			return true, nil
-		}
+func IsCertificateValid(cert *cssh.Certificate) bool {
+	validBefore := int64(cert.ValidBefore)
+	validAfter := int64(cert.ValidAfter)
+	now := time.Now().Unix()
+	if now < validBefore && now > validAfter {
+		return true
 	}
 
-	return false, nil
+	return false
 }
