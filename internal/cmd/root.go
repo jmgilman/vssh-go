@@ -72,7 +72,9 @@ func main(args []string) {
 	}
 
 	// Pass config values
-	vaultClient.SetConfigValues(viper.GetString("server"), viper.GetString("token"))
+	if err := vaultClient.SetConfigValues(viper.GetString("server"), viper.GetString("token")); err != nil {
+		errorThenExit("Error setting Vault server or token: ", err)
+	}
 
 	// Verify the vault is in a usable state
 	status, err := vaultClient.Available()
