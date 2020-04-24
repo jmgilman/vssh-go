@@ -57,3 +57,29 @@ func TestGetAuthDetails(t *testing.T) {
 	assert.Equal(t, "test", details["field1"].Value)
 	assert.Equal(t, "test", details["field2"].Value)
 }
+
+func TestGetPublicKeyPath(t *testing.T) {
+	path := "some/fake/path/key"
+
+	t.Run("With identity file", func(t *testing.T) {
+		pubKeyPath, err := ui.GetPublicKeyPath(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, "pub", pubKeyPath[len(pubKeyPath)-3:])
+	})
+	t.Run("Without identity file", func(t *testing.T) {
+		pubKeyPath, err := ui.GetPublicKeyPath("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		assert.Equal(t, "pub", pubKeyPath[len(pubKeyPath)-3:])
+	})
+}
+
+func TestGetPublicKeyCertPath(t *testing.T) {
+	path := "/home/user/.ssh/id_rsa.pub"
+	expected := "/home/user/.ssh/id_rsa-cert.pub"
+
+	assert.Equal(t, expected, ui.GetPublicKeyCertPath(path))
+}

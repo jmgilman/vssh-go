@@ -8,11 +8,14 @@ import (
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"io/ioutil"
 	"os"
 )
 
 var server string
 var token string
+var role string
+var mount string
 var identity string
 
 var cfgFile string
@@ -43,7 +46,7 @@ func main() {
 		fmt.Println("Error trying to load Vault client configuration: ", err)
 		os.Exit(1)
 	}
-	
+
 	// Verify the vault is in a usable state
 	status, err := vaultClient.Available()
 	if err != nil {
@@ -77,6 +80,37 @@ func main() {
 
 		fmt.Println("Authentication successful!")
 	}
+
+	publicKeyPath, err := ui.GetPublicKeyPath(identity)
+	if err != nil {
+		fmt.Println("Error getting public key:", err)
+		os.Exit(1)
+	}
+
+	if _, err := os.Stat(publicKeyPath); os.IsNotExist(err) {
+		fmt.Println("Could not find public key file at", publicKeyPath)
+		os.Exit(1)
+	}
+
+	data, err := ioutil.ReadFile(publicKeyPath)
+	if err != nil {
+		fmt.Println("Error trying to read public key file at", publicKeyPath)
+		os.Exit(1)
+	}
+
+	signedKey, err := vaultClient.SignPubKey(mount, role, data)
+	if err != nil {
+		fmt.Println("Error signing public key:", err)
+		os.Exit(1)
+	}
+
+	signedKeyPath := ui.GetPublicKeyCertPath(publicKeyPath)
+	if err := ioutil.WriteFile(signedKeyPath, []byte(signedKey), 0644); err != nil {
+		fmt.Println("Error writing public key certificate:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Wrote certificate to ", signedKeyPath)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -97,6 +131,8 @@ func init() {
 	// Vault variables
 	rootCmd.PersistentFlags().StringVarP(&server, "server", "s", "", "address of vault server")
 	rootCmd.PersistentFlags().StringVarP(&token, "token", "t", "", "vault token to use for authentication")
+	rootCmd.PersistentFlags().StringVarP(&role, "role", "r", "", "vault role account to sign with")
+	rootCmd.PersistentFlags().StringVarP(&mount, "mount", "m", "", "mount path for ssh backend")
 
 	// SSH variables
 	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (defaults to $HOME/.ssh/id_rsa)")
