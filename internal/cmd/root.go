@@ -5,6 +5,7 @@ import (
 	"github.com/jmgilman/vssh/auth"
 	"github.com/jmgilman/vssh/client"
 	"github.com/jmgilman/vssh/internal/ui"
+	"github.com/jmgilman/vssh/ssh"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -37,20 +38,33 @@ automatically prompt to authenticate against Vault and obtain a new token via an
 	},
 }
 
-
 // main is executed by the root command and is the main entry point to the program
 func main() {
+	// See if the public key certificate exists and is signed
+	publicKeyPath, pubKeyBytes, err := ssh.GetPublicKey(identity)
+	if err != nil {
+		errorThenExit("Error fetching public key", err)
+	}
+	certPath := ssh.GetPublicKeyCertPath(publicKeyPath)
+	valid, err := ssh.IsCertificateValid(certPath)
+	if err != nil {
+		errorThenExit("Error reading certificate at " + certPath, err)
+	}
+	if valid {
+		fmt.Println("Already signed!")
+		os.Exit(0)
+	}
+
 	// Attempt to create a Client using default config parameters
 	vaultClient, err := client.NewDefaultClient()
 	if err != nil {
-		fmt.Println("Error trying to load Vault client configuration: ", err)
-		os.Exit(1)
+		errorThenExit("Error trying to load Vault client configuration", err)
 	}
 
 	// Verify the vault is in a usable state
 	status, err := vaultClient.Available()
 	if err != nil {
-		fmt.Println("Error trying to check vault status: ", err)
+		errorThenExit("Error trying to check vault status", err)
 	}
 
 	if !status {
@@ -60,57 +74,46 @@ func main() {
 
 	// Check if client is authenticated - if not, attempt to perform a login with the client
 	if !vaultClient.Authenticated() {
-		// Ask which authentication type they would like to use
-		prompt := ui.NewSelectPrompt("Please choose an authentication method:", auth.GetAuthNames())
-		_, result, err := prompt.Run()
-		if err != nil {
-			fmt.Println("Error getting authentication method:", err)
-			os.Exit(1)
-		}
-
-		// Collect authentication details for the selected method
-		authType := auth.Types[result]()
-		details, err := ui.GetAuthDetails(authType, ui.NewPrompt)
-
-		// Login with the collected details
-		if err := vaultClient.Login(authType, details); err != nil {
-			fmt.Println("Error logging in:", err)
-			os.Exit(1)
-		}
-
-		fmt.Println("Authentication successful!")
+		login(vaultClient)
 	}
 
-	publicKeyPath, err := ui.GetPublicKeyPath(identity)
+	signedKey, err := vaultClient.SignPubKey(mount, role, pubKeyBytes)
 	if err != nil {
-		fmt.Println("Error getting public key:", err)
-		os.Exit(1)
+		errorThenExit("Error signing public key", err)
 	}
 
-	if _, err := os.Stat(publicKeyPath); os.IsNotExist(err) {
-		fmt.Println("Could not find public key file at", publicKeyPath)
-		os.Exit(1)
+	if err := ioutil.WriteFile(certPath, []byte(signedKey), 0644); err != nil {
+		errorThenExit("Error writing public key certificate", err)
 	}
 
-	data, err := ioutil.ReadFile(publicKeyPath)
+	fmt.Println("Wrote certificate to ", certPath)
+}
+
+func login(vaultClient *client.VaultClient) {
+	// Ask which authentication type they would like to use
+	prompt := ui.NewSelectPrompt("Please choose an authentication method:", auth.GetAuthNames())
+	_, result, err := prompt.Run()
 	if err != nil {
-		fmt.Println("Error trying to read public key file at", publicKeyPath)
+		fmt.Println("Error getting authentication method:", err)
 		os.Exit(1)
 	}
 
-	signedKey, err := vaultClient.SignPubKey(mount, role, data)
-	if err != nil {
-		fmt.Println("Error signing public key:", err)
+	// Collect authentication details for the selected method
+	authType := auth.Types[result]()
+	details, err := ui.GetAuthDetails(authType, ui.NewPrompt)
+
+	// Login with the collected details
+	if err := vaultClient.Login(authType, details); err != nil {
+		fmt.Println("Error logging in:", err)
 		os.Exit(1)
 	}
 
-	signedKeyPath := ui.GetPublicKeyCertPath(publicKeyPath)
-	if err := ioutil.WriteFile(signedKeyPath, []byte(signedKey), 0644); err != nil {
-		fmt.Println("Error writing public key certificate:", err)
-		os.Exit(1)
-	}
+	fmt.Println("Authentication successful!")
+}
 
-	fmt.Println("Wrote certificate to ", signedKeyPath)
+func errorThenExit(message string, err error) {
+	fmt.Println(message, ":", err)
+	os.Exit(1)
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

@@ -5,19 +5,8 @@ import (
 	"github.com/jmgilman/vssh/internal/mocks"
 	"github.com/jmgilman/vssh/internal/ui"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"testing"
 )
-
-func TestNewSSHCommand(t *testing.T) {
-	args := []string{"arg1", "arg2"}
-	expectedArgs := []string{"ssh", "arg1", "arg2"}
-	result := ui.NewSSHCommand(args)
-
-	assert.Equal(t, result.Args, expectedArgs)
-	assert.Equal(t, result.Stdin, os.Stdin)
-	assert.Equal(t, result.Stdout, os.Stdout)
-}
 
 func TestGetAuthDetails(t *testing.T) {
 	var messages []string
@@ -51,35 +40,11 @@ func TestGetAuthDetails(t *testing.T) {
 	}
 
 	// Assert that the prompt was called with all given details
-	assert.Equal(t, messages, expectedMessages)
+	for _, message := range messages {
+		assert.Contains(t, expectedMessages, message)
+	}
 
 	// Assert that the return from Run() was put back into the details struct
 	assert.Equal(t, "test", details["field1"].Value)
 	assert.Equal(t, "test", details["field2"].Value)
-}
-
-func TestGetPublicKeyPath(t *testing.T) {
-	path := "some/fake/path/key"
-
-	t.Run("With identity file", func(t *testing.T) {
-		pubKeyPath, err := ui.GetPublicKeyPath(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, "pub", pubKeyPath[len(pubKeyPath)-3:])
-	})
-	t.Run("Without identity file", func(t *testing.T) {
-		pubKeyPath, err := ui.GetPublicKeyPath("")
-		if err != nil {
-			t.Fatal(err)
-		}
-		assert.Equal(t, "pub", pubKeyPath[len(pubKeyPath)-3:])
-	})
-}
-
-func TestGetPublicKeyCertPath(t *testing.T) {
-	path := "/home/user/.ssh/id_rsa.pub"
-	expected := "/home/user/.ssh/id_rsa-cert.pub"
-
-	assert.Equal(t, expected, ui.GetPublicKeyCertPath(path))
 }
