@@ -1,3 +1,4 @@
+// The cmd package provides the main entry point into the vssh program
 package cmd
 
 import (
@@ -40,7 +41,6 @@ automatically prompt to authenticate against Vault and obtain a new token via an
 
 // main is executed by the root command and is the main entry point to the program
 func main(args []string) {
-	// Load public key information
 	publicKeyPath, pubKeyBytes, err := ssh.GetPublicKey(viper.GetString("identity"))
 	if err != nil {
 		errorThenExit("Error fetching public key", err)
@@ -65,13 +65,11 @@ func main(args []string) {
 		os.Exit(1)
 	}
 
-	// Attempt to create a Client using default config parameters
 	vaultClient, err := client.NewDefaultClient()
 	if err != nil {
 		errorThenExit("Error trying to load Vault client configuration", err)
 	}
 
-	// Pass config values
 	if err := vaultClient.SetConfigValues(viper.GetString("server"), viper.GetString("token")); err != nil {
 		errorThenExit("Error setting Vault server or token: ", err)
 	}
@@ -87,7 +85,6 @@ func main(args []string) {
 		os.Exit(1)
 	}
 
-	// Check if client is authenticated - if not, attempt to perform a login with the client
 	if !vaultClient.Authenticated() {
 		login(vaultClient)
 	}
@@ -105,6 +102,8 @@ func main(args []string) {
 	runSSH(args)
 }
 
+// login performs the process of requesting credentials from the end-user and using them to perform a login against the
+// given VaultClient instance.
 func login(vaultClient *client.VaultClient) {
 	// Ask which authentication type they would like to use
 	prompt := ui.NewSelectPrompt("Please choose an authentication method:", auth.GetAuthNames())
@@ -138,6 +137,8 @@ func login(vaultClient *client.VaultClient) {
 		}
 	}
 }
+
+// runSSH creates and executes the ssh command using the given arguments
 func runSSH(args []string) {
 	cmd := ssh.NewSSHCommand(args)
 	if err := cmd.Run(); err != nil {
@@ -146,6 +147,7 @@ func runSSH(args []string) {
 	os.Exit(0)
 }
 
+// errorThenExit is a small wrapper for reporting and error and existing with a non-zero exit code
 func errorThenExit(message string, err error) {
 	fmt.Println(message, ":", err)
 	os.Exit(1)
@@ -160,6 +162,7 @@ func Execute() {
 	}
 }
 
+// init is where flags and configuration data is setup
 func init() {
 	// Load config file
 	cobra.OnInitialize(initConfig)
