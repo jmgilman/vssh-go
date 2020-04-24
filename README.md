@@ -14,7 +14,7 @@ Alternatively, download the binary for your system on the releases page.
 
 ## Usage
 
-![example](https://media.giphy.com/media/jpWHR77EsEAPI4gIPj/giphy.gif)
+![example](demo.gif)
 
 ```shell script
 $> vssh -help
