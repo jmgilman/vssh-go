@@ -27,6 +27,7 @@ Flags:
   -h, --help              help for vssh
   -i, --identity string   ssh key-pair to sign and use (default: $HOME/.ssh/id_rsa)
   -m, --mount string      mount path for ssh backend (default: ssh)
+      --only-sign         only sign the public key - do not execute ssh process
   -p, --persist           persist obtained tokens to ~/.vault-token
   -r, --role string       vault role account to sign with
   -s, --server string     address of vault server (default: $VAULT_ADDR)
@@ -36,7 +37,8 @@ Flags:
 ### Authentication
 When you call VaultSSH it performs a few things on startup:
 
-1. Checks if the given identity already has an associated signed (and valid) certificate and connects if it does
+1. Checks if the given identity already has an associated signed (and valid) certificate and connects if it does. Note
+that this step is skipped if the `--only-sign` flag is passed as it always results in signing the public key.
 2. If there is no valid certificate, it will ensure the configured Vault server is available (not sealed or 
 uninitialized) and then attempt to find a vault token at `$VAULT_TOKEN`. 
 3. If it finds a token, it will proceed to verify it is still alive and active. If the token is not alive, or no token
@@ -68,6 +70,21 @@ sub processes by adding a `--` to your command:
 ```shell script
 $> vssh gw.example.com -- -L 80:intra.example.com:80
 ```
+
+### FAQ
+
+**How do I only sign my public key and not connect to a host?**
+
+Pass the `--only-sign` flag which skips executing the ssh process. Note that you
+do not have to supply a hostname when passing this flag, as by its nature it assumes you don't want to connect to a
+host.
+
+**Why do my public keys only get signed sometimes and not others?**
+
+Before processing any token related information, the VaultSSH program will first check if there is an existing signed
+certificate for the given identity file and whether it is still valid. If there is a certificate present, and 
+it has not expired, then the program will skip signing the key again. This behavior can be overridden by passing the
+`--only-sign` flag which always results in signing the public key. 
 
 ## Development Setup
 

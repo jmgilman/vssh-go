@@ -200,7 +200,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (default: $HOME/.ssh/id_rsa)")
 	err = viper.BindPFlag("identity", rootCmd.PersistentFlags().Lookup("identity"))
 
-	rootCmd.PersistentFlags().BoolVarP(&onlySign, "only-sign", "", false, "only sign the certificate - do not execute ssh process")
+	rootCmd.PersistentFlags().BoolVarP(&onlySign, "only-sign", "", false, "only sign the public key - do not execute ssh process")
 	err = viper.BindPFlag("sign", rootCmd.PersistentFlags().Lookup("only-sign"))
 
 	// Config variables
