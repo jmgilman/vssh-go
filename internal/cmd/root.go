@@ -34,7 +34,16 @@ Vault instance and using it to authenticate against a given host. It uses the de
 setting the Vault server address and token, but all configuration details can be optionally provided via flags, a 
 custom config file, or the default configuration file at ~/.vssh. If no token is provided, the wrapper will 
 automatically prompt to authenticate against Vault and obtain a new token via any configured authentication method.`,
-	Args: cobra.MinimumNArgs(1),
+	Args: func(cmd *cobra.Command, args []string) error {
+		onlySignValue, err := cmd.Flags().GetBool("only-sign")
+		if err != nil {
+			return err
+		}
+		if len(args) <= 0 && !onlySignValue {
+			return fmt.Errorf("Must supply the SSH host to connect to")
+		}
+		return nil
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		main(args)
 	},
@@ -160,12 +169,10 @@ func errorThenExit(message string, err error) {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	fmt.Println("Beginning")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	fmt.Println("End")
 }
 
 // init is where flags and configuration data is setup
