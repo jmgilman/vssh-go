@@ -21,7 +21,7 @@ var role string
 var mount string
 var persist bool
 var identity string
-var sign bool
+var onlySign bool
 
 var cfgFile string
 
@@ -48,8 +48,9 @@ func main(args []string) {
 	}
 
 	// Check if a cert exists and is still valid
+	// This should be skipped if the user specifically requested signing
 	certPath := ssh.GetPublicKeyCertPath(publicKeyPath)
-	if _, err := os.Stat(certPath); !os.IsNotExist(err) {
+	if _, err := os.Stat(certPath); !os.IsNotExist(err) && !onlySign {
 		cert, err := ssh.GetCertificate(certPath)
 		if err != nil {
 			errorThenExit("Error reading certificate at " + certPath, err)
@@ -100,7 +101,9 @@ func main(args []string) {
 	}
 
 	fmt.Println("Wrote certificate to ", certPath)
-	runSSH(args)
+	if !onlySign {
+		runSSH(args)
+	}
 }
 
 // login performs the process of requesting credentials from the end-user and using them to perform a login against the
@@ -157,10 +160,12 @@ func errorThenExit(message string, err error) {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	fmt.Println("Beginning")
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	fmt.Println("End")
 }
 
 // init is where flags and configuration data is setup
@@ -188,7 +193,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (default: $HOME/.ssh/id_rsa)")
 	err = viper.BindPFlag("identity", rootCmd.PersistentFlags().Lookup("identity"))
 
-	rootCmd.PersistentFlags().BoolVarP(&sign, "only-sign", "", false, "only sign the certificate - do not execute ssh process")
+	rootCmd.PersistentFlags().BoolVarP(&onlySign, "only-sign", "", false, "only sign the certificate - do not execute ssh process")
 	err = viper.BindPFlag("sign", rootCmd.PersistentFlags().Lookup("only-sign"))
 
 	// Config variables
