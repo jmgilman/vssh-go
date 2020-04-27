@@ -98,6 +98,10 @@ for testing functions which utilize the Vault API.
 
 * v0.1.0
   * Initial release
+* v0.1.1
+  * Adds release binaries
+* v0.1.2
+  * Adds --only-sign flag to force only signing the public key and not executing the ssh process
   
 ## Meta
 
