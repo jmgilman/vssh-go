@@ -21,6 +21,7 @@ var role string
 var mount string
 var persist bool
 var identity string
+var sign bool
 
 var cfgFile string
 
@@ -186,6 +187,9 @@ func init() {
 	// SSH variables
 	rootCmd.PersistentFlags().StringVarP(&identity, "identity", "i", "", "ssh key-pair to sign and use (default: $HOME/.ssh/id_rsa)")
 	err = viper.BindPFlag("identity", rootCmd.PersistentFlags().Lookup("identity"))
+
+	rootCmd.PersistentFlags().BoolVarP(&sign, "only-sign", "", false, "only sign the certificate - do not execute ssh process")
+	err = viper.BindPFlag("sign", rootCmd.PersistentFlags().Lookup("only-sign"))
 
 	// Config variables
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: $HOME/.vssh)")
