@@ -10,6 +10,12 @@ flags. VaultSSH is also completely customizable via flags, environment variables
 
 ```go get https://github.com/jmgilman/VaultSSH```
 
+For Mac/OSX:
+```
+brew tap jmgilman/apps
+brew install vssh
+```
+
 Alternatively, download the binary for your system on the releases page.
 
 ## Usage
