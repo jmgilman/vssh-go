@@ -10,6 +10,8 @@ brews:
     github:
       owner: jmgilman
       name: brew
+    url_template: "https://github.com/jmgilman/vssh/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    skip_upload: false
     commit_author:
       name: Joshua Gilman
       email: joshuagilman@gmail.com
